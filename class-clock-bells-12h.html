@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Class Clock + Bell Schedule (12‑Hour)</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --fg:#ffffff;
+      --muted:#a8b0c0;
+      --accent:#57c5ff;
+      --warn:#ffb000;
+      --danger:#ff4d4f;
+      --card:#151b2f;
+      --btn:#1f2640;
+    }
+    body.light{
+      --bg:#ffffff;
+      --fg:#111111;
+      --muted:#666a73;
+      --accent:#0066cc;
+      --warn:#c97a00;
+      --danger:#b00020;
+      --card:#f3f5f9;
+      --btn:#e7eaf3;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background:var(--bg);
+      color:var(--fg);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:4vmin;
+      transition: background 300ms ease, color 300ms ease;
+    }
+    .wrap{width:min(1200px, 98vw)}
+    .top{
+      display:flex; align-items:flex-end; justify-content:space-between; gap:2rem; flex-wrap:wrap;
+    }
+    .title{ font-size: clamp(18px, 3vmin, 28px); font-weight:600; color:var(--muted); letter-spacing:.02em; }
+    .clock{
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(48px, 14vmin, 160px);
+      line-height:1;
+      font-weight:800;
+      letter-spacing:.02em;
+      text-shadow: 0 0 24px color-mix(in oklab, var(--accent) 40%, transparent);
+    }
+    .subline{ margin-top:.25rem; font-size: clamp(14px, 2.2vmin, 22px); color:var(--muted); }
+    .card{ background: var(--card); border-radius: 20px; padding: clamp(16px, 2.25vmin, 28px); box-shadow: 0 8px 30px rgba(0,0,0,.18); }
+    .left-col{flex:1 1 500px}
+    .right-col{flex:1 1 340px}
+    .countdown-label{font-size: clamp(13px, 2.2vmin, 20px); color:var(--muted); margin-bottom:.5rem; display:flex; align-items:center; gap:.5rem;}
+    .countdown{font-variant-numeric: tabular-nums; font-size: clamp(36px, 9vmin, 96px); font-weight: 800; letter-spacing:.02em;}
+    .progress{margin-top: 12px; height: 10px; background: color-mix(in oklab, var(--fg) 8%, transparent); border-radius: 999px; overflow:hidden;}
+    .bar{height:100%; width:0%; background: linear-gradient(90deg, var(--accent), color-mix(in oklab, var(--accent) 70%, var(--fg) 30%)); transition: width .25s linear;}
+    .warn .bar{ background: var(--warn); }
+    .warn .countdown{ color: var(--warn); }
+    .done .bar{ background: var(--danger); }
+    .done .countdown{ color: var(--danger); }
+    .flash{ animation: flash-bg 1.2s steps(2, jump-none) infinite; }
+    @keyframes flash-bg{ 0% { background: var(--card); } 50% { background: color-mix(in oklab, var(--danger) 18%, var(--card)); } 100% { background: var(--card); } }
+    .controls{ display:flex; flex-wrap:wrap; gap:.5rem; margin-top:1rem; }
+    .btn{
+      border:0; border-radius: 12px; padding:.6rem .9rem; background: var(--btn); color: var(--fg);
+      cursor:pointer; font-weight:600; letter-spacing:.02em; box-shadow: 0 2px 10px rgba(0,0,0,.15);
+    }
+    .btn:hover{ filter: brightness(1.06); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{ background: var(--accent); color:#001020; }
+    .btn.ghost{ background: transparent; outline:1px solid color-mix(in oklab, var(--fg) 18%, transparent); }
+    .pill{ background: color-mix(in oklab, var(--fg) 8%, transparent); padding:.2rem .6rem; border-radius:999px; font-size:.9em; color:var(--muted); }
+    .grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:.6rem; margin-top:1rem; }
+    .period{ background: var(--btn); border-radius:14px; padding:.75rem .9rem; display:flex; flex-direction:column; gap:.25rem; cursor:pointer; border:2px solid transparent; }
+    .period.active{ border-color: var(--accent); }
+    .period .name{ font-weight:700; }
+    .period .time{ color: var(--muted); font-size:.95em; }
+    .cards{display:grid; grid-template-columns: 1fr; gap:1rem; margin-top:2.25rem}
+    .help{margin-top:1rem; color:var(--muted); font-size: clamp(12px, 2vmin, 18px)}
+    .help code{background: color-mix(in oklab, var(--fg) 8%, transparent); padding:.2em .4em; border-radius:.4em}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="left-col">
+        <div class="title" id="title">Current Time</div>
+        <div class="clock" id="clock">--:--:--</div>
+        <div class="subline" id="dateLine">—</div>
+        <div class="controls">
+          <button class="btn" id="toggleTheme">Toggle Light/Dark</button>
+          <button class="btn ghost" id="toggleSeconds">Show/Hide Seconds</button>
+          <span class="pill" id="tzPill"></span>
+        </div>
+      </div>
+      <div class="right-col card">
+        <div class="countdown-label" id="cdLabel">Time left</div>
+        <div class="countdown" id="countdown">--:--</div>
+        <div class="progress" id="progress"><div class="bar" id="bar"></div></div>
+        <div class="controls">
+          <button class="btn primary" id="autoSelect">Auto‑select current period</button>
+          <button class="btn" id="dismiss">Dismiss / Reset</button>
+          <button class="btn ghost" id="beepTest">🔔 Test bell</button>
+        </div>
+        <div class="help" id="help">Tip: Click a period below to start a countdown to its <b>end</b>. Edit your bell times in the config section of this file.</div>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="title">Periods</div>
+        <div id="periodGrid" class="grid"></div>
+      </div>
+      <div class="card">
+        <div class="title">Quick Duration</div>
+        <div class="controls">
+          <button class="btn" data-min="10">10 min</button>
+          <button class="btn" data-min="15">15 min</button>
+          <button class="btn" data-min="20">20 min</button>
+          <button class="btn" data-min="30">30 min</button>
+          <button class="btn" data-min="45">45 min</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* =========================
+   BELL SCHEDULE CONFIG
+   =========================
+   - Edit the times below to match your school day (24-hour HH:MM for start/end).
+   - Only end times are used for countdowns; starts help auto-select the right period.
+*/
+const BELL_SCHEDULE = [
+  { name: "1st Period",   start: "08:00", end: "08:45" },
+  { name: "2nd Period",   start: "08:50", end: "09:35" },
+  { name: "3rd Period",   start: "09:40", end: "10:25" },
+  { name: "4th Period",   start: "10:30", end: "11:15" },
+  { name: "5th Period",   start: "11:20", end: "12:05" },
+  { name: "6th Period",   start: "12:10", end: "12:55" },
+  { name: "7th Period",   start: "13:00", end: "13:45" },
+  { name: "8th Period",   start: "13:50", end: "14:35" },
+];
+
+// ----- THEME & FORMAT STATE -----
+let isLight = false;
+let showSeconds = true;
+const hour12 = true; // <- locked to 12-hour format
+
+// ----- ELEMENTS -----
+const titleEl = document.getElementById('title');
+const clockEl = document.getElementById('clock');
+const dateLineEl = document.getElementById('dateLine');
+const cdLabel = document.getElementById('cdLabel');
+const countdownEl = document.getElementById('countdown');
+const progressEl = document.getElementById('progress');
+const barEl = document.getElementById('bar');
+const helpEl = document.getElementById('help');
+const tzPill = document.getElementById('tzPill');
+const grid = document.getElementById('periodGrid');
+
+// ----- TZ -----
+const tzFmt = new Intl.DateTimeFormat(undefined, { timeZoneName:'short' });
+tzPill.textContent = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) + ' ' + (tzFmt.formatToParts(new Date()).find(p=>p.type==='timeZoneName')?.value || '');
+
+// ----- BUILD PERIOD BUTTONS -----
+let periodButtons = [];
+function buildGrid(){
+  grid.innerHTML = '';
+  periodButtons = BELL_SCHEDULE.map((p, idx)=>{
+    const div = document.createElement('button');
+    div.className = 'period';
+    div.innerHTML = `<div class="name">${p.name}</div><div class="time">${p.start}–${p.end}</div>`;
+    div.addEventListener('click', ()=>startPeriod(idx));
+    grid.appendChild(div);
+    return div;
+  });
+}
+buildGrid();
+
+// ----- CLOCK LOOP -----
+function fmtTime(date){
+  let opts = { hour:'2-digit', minute:'2-digit', hour12 };
+  if (showSeconds) opts.second='2-digit';
+  return new Intl.DateTimeFormat(undefined, opts).format(date);
+}
+const dateFmt = new Intl.DateTimeFormat(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+let target = null;
+let totalMs = 0;
+let warned = false;
+
+function parseHM(hm){
+  const [h,m] = hm.split(':').map(n=>parseInt(n,10));
+  return {h, m};
+}
+function todayAt(h, m){
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+}
+
+function setCountdownTo(date, label){
+  target = date;
+  totalMs = target - Date.now();
+  warned = false;
+  cdLabel.textContent = label || 'Time left';
+  document.querySelectorAll('.period').forEach(el=>el.classList.remove('active'));
+}
+
+function startPeriod(idx){
+  const p = BELL_SCHEDULE[idx];
+  const {h:eh, m:em} = parseHM(p.end);
+  const end = todayAt(eh, em);
+  if (end <= new Date()) end.setDate(end.getDate()+1); // if you've already passed today's time, go to tomorrow
+  setCountdownTo(end, p.name + ' ends in');
+  periodButtons[idx].classList.add('active');
+}
+
+function autoSelectCurrent(){
+  const now = new Date();
+  for (let i=0;i<BELL_SCHEDULE.length;i++){
+    const p = BELL_SCHEDULE[i];
+    const {h:sh,m:sm} = parseHM(p.start);
+    const {h:eh,m:em} = parseHM(p.end);
+    const s = todayAt(sh, sm);
+    const e = todayAt(eh, em);
+    if (now >= s && now < e){
+      startPeriod(i);
+      return true;
+    }
+  }
+  // If not within a period, choose the next upcoming one
+  let soonest = null, soonIdx = -1;
+  for (let i=0;i<BELL_SCHEDULE.length;i++){
+    const p = BELL_SCHEDULE[i];
+    const {h:eh,m:em} = parseHM(p.end);
+    let e = todayAt(eh, em);
+    if (e < now) e.setDate(e.getDate()+1);
+    if (!soonest || e < soonest){ soonest = e; soonIdx = i; }
+  }
+  if (soonIdx >= 0){
+    startPeriod(soonIdx);
+    return true;
+  }
+  return false;
+}
+
+// clock tick
+function tick(){
+  const now = new Date();
+  clockEl.textContent = fmtTime(now);
+  dateLineEl.textContent = `${dateFmt.format(now)}`;
+
+  if (target){
+    const remaining = target - now;
+    const warnMs = 5 * 60 * 1000; // 5‑min visual warning
+    const used = totalMs - Math.max(0, remaining);
+    const pct = totalMs>0 ? Math.min(100, Math.max(0, (used/totalMs)*100)) : 100;
+    barEl.style.width = pct.toFixed(2) + "%";
+    countdownEl.textContent = fmtCountdown(remaining);
+
+    const soon = remaining <= warnMs && remaining > 0;
+    const done = remaining <= 0;
+    document.body.classList.toggle('warn', soon);
+    document.body.classList.toggle('done', done);
+    const card = cdLabel.parentElement.parentElement;
+    card.classList.toggle('flash', done);
+
+    if(soon && !warned){ warned = true; if (navigator.vibrate) { navigator.vibrate([60,40,60]); } }
+    if(done){ chime(); }
+  }
+  requestAnimationFrame(()=>setTimeout(tick, 250));
+}
+function fmtCountdown(ms){
+  if(ms < 0) ms = 0;
+  const sec = Math.floor(ms/1000);
+  const h = Math.floor(sec/3600);
+  const m = Math.floor((sec%3600)/60);
+  const s = sec%60;
+  if (h>0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+tick();
+
+// ----- UI CONTROLS -----
+document.getElementById('toggleTheme').addEventListener('click', ()=>{
+  isLight = !isLight;
+  document.body.classList.toggle('light', isLight);
+});
+document.getElementById('toggleSeconds').addEventListener('click', ()=>{
+  showSeconds = !showSeconds;
+});
+document.getElementById('autoSelect').addEventListener('click', autoSelectCurrent);
+document.getElementById('dismiss').addEventListener('click', ()=>{
+  target = null; totalMs = 0; warned = false; barEl.style.width = "0%"; countdownEl.textContent = "--:--";
+  document.body.classList.remove('warn','done');
+  document.querySelectorAll('.period').forEach(el=>el.classList.remove('active'));
+});
+document.getElementById('beepTest').addEventListener('click', chime);
+
+// ----- SIMPLE BELL SOUND (WebAudio) -----
+let audioCtx;
+function chime(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const now = audioCtx.currentTime;
+    function tone(freq, t, dur=0.18, type='sine'){
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = type; o.frequency.value = freq;
+      o.connect(g); g.connect(audioCtx.destination);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.2, t+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+      o.start(t); o.stop(t+dur);
+    }
+    // Little tri-tone chime
+    tone(880, now);
+    tone(660, now+0.2);
+    tone(990, now+0.4);
+  }catch(e){/* ignore */}
+}
+
+// Auto-select on load if within a period
+autoSelectCurrent();
+</script>
+</body>
+</html>
