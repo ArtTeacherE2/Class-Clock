@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clock Strip (12‑Hour)</title>
+<style>
+  :root{
+    --bg:#0b1020;   /* change via ?bg=%23RRGGBB */
+    --fg:#ffffff;   /* change via ?fg=%23RRGGBB */
+    --muted:#9aa3b2;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%; margin:0; overflow:hidden;}
+  body{
+    background:var(--bg);
+    color:var(--fg);
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  }
+  .strip{
+    height:100%; width:100%;
+    display:flex; align-items:center; justify-content:space-between;
+    padding: .35rem .9rem;
+    gap: .75rem;
+  }
+  .left{
+    display:flex; flex-direction:column; min-width:0;
+  }
+  .label{
+    font-weight:600; color:var(--muted);
+    font-size: clamp(10px, 2.2vmin, 16px);
+    line-height:1.1;
+  }
+  .time{
+    font-variant-numeric: tabular-nums;
+    font-weight:800; line-height:1;
+    /* font-size auto-scales with container height: */
+    font-size: min(12vmin, 8vh);
+    letter-spacing:.02em;
+    white-space:nowrap;
+    text-shadow: 0 0 12px rgba(0,0,0,.25);
+  }
+  .date{
+    color:var(--muted);
+    font-size: clamp(10px, 2vmin, 14px);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+</style>
+</head>
+<body>
+  <div class="strip">
+    <div class="left">
+      <div class="label" id="label">Current Time</div>
+      <div class="time" id="clock">--:--:-- AM</div>
+    </div>
+    <div class="date" id="date">—</div>
+  </div>
+
+<script>
+  // URL parameters: ?label=Art%201%20Class&bg=%230b1020&fg=%23ffffff&seconds=0
+  const params = new URLSearchParams(location.search);
+  const label = params.get('label') || 'Current Time';
+  const secondsOn = (params.get('seconds')||'1') !== '0';
+  const bg = params.get('bg'); const fg = params.get('fg');
+
+  if(bg) document.documentElement.style.setProperty('--bg', bg);
+  if(fg) document.documentElement.style.setProperty('--fg', fg);
+  document.getElementById('label').textContent = label;
+
+  function fmtTime(date){
+    const opts = { hour:'2-digit', minute:'2-digit', second: secondsOn ? '2-digit' : undefined, hour12: true };
+    return new Intl.DateTimeFormat(undefined, opts).format(date);
+  }
+  const dateFmt = new Intl.DateTimeFormat(undefined, { weekday:'short', month:'short', day:'2-digit', year:'numeric' });
+  const tzFmt = new Intl.DateTimeFormat(undefined, { timeZoneName:'short' });
+
+  function tick(){
+    const now = new Date();
+    document.getElementById('clock').textContent = fmtTime(now);
+    const tz = tzFmt.formatToParts(now).find(p=>p.type==='timeZoneName')?.value || '';
+    document.getElementById('date').textContent = dateFmt.format(now) + ' • ' + tz;
+    requestAnimationFrame(()=>setTimeout(tick, 250));
+  }
+  tick();
+</script>
+</body>
+</html>
